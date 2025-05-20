@@ -11,6 +11,9 @@ import { BlurView } from 'expo-blur';
 import MaskedView from '@react-native-masked-view/masked-view';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { Video } from 'expo-av';
+import * as Linking from 'expo-linking';
+import * as FileSystem from 'expo-file-system';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -23,6 +26,9 @@ const CARD_SHADOW = '#0331FF44';
 const SECONDARY = '#0331FF';
 const TEXT_MAIN = '#fff';
 const TEXT_SECONDARY = '#6C6C6C';
+
+// Тип курса
+const initialCourses = [];
 
 function GridBackground() {
   // Сетка 40x40 px
@@ -69,13 +75,54 @@ function withHaptic(fn) {
 
 // Экран Курсы (заглушка)
 function CoursesScreen({ navigation }) {
+  const [courses, setCourses] = React.useState(initialCourses);
+
+  const addCourse = (course) => {
+    setCourses(prev => [course, ...prev]);
+  };
+
+  const handleOpenCourse = (course) => {
+    navigation.navigate('CourseDetail', { course });
+  };
+
   return (
-    <LinearGradient colors={BG_GRADIENT} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text style={[styles.title, { fontSize: 26 }]}>Курсы</Text>
-      <Text style={[styles.folderDesc, { fontSize: 16, marginTop: 10 }]}>Здесь скоро появятся курсы!</Text>
-      <View style={{ marginTop: 30 }}>
-        <ModernButton onPress={() => navigation.navigate('CreateCourse')} iconRight={<Feather name="plus" size={22} color="#2563EB" />}>Создать курс</ModernButton>
-      </View>
+    <LinearGradient colors={BG_GRADIENT} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <GridBackground />
+        <View style={{ margin: 18, flex: 1 }}>
+          <Text style={[styles.title, { fontSize: 26, marginBottom: 10 }]}>Курсы</Text>
+          <ModernButton onPress={() => navigation.navigate('CreateCourse', { addCourse })} iconRight={<Feather name="plus" size={22} color="#2563EB" />}>Создать курс</ModernButton>
+          <FlatList
+            data={courses}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ paddingBottom: 30 }}
+            renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => handleOpenCourse(item)} activeOpacity={0.85} style={{ marginTop: 18 }}>
+                <View style={{ backgroundColor: '#23262F', borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }}>
+                  {item.video ? (
+                    <Video
+                      source={{ uri: item.video }}
+                      style={{ width: 80, height: 60, borderRadius: 10, marginRight: 16 }}
+                      usePoster
+                      posterStyle={{ borderRadius: 10 }}
+                      isMuted
+                    />
+                  ) : (
+                    <View style={{ width: 80, height: 60, borderRadius: 10, backgroundColor: '#181F2A', marginRight: 16, alignItems: 'center', justifyContent: 'center' }}>
+                      <Feather name="video" size={28} color={TEXT_SECONDARY} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: TEXT_MAIN, fontSize: 17, fontWeight: 'bold', marginBottom: 4 }}>{item.title}</Text>
+                    <Text style={{ color: TEXT_SECONDARY, fontSize: 14 }} numberOfLines={2}>{item.description}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={<Text style={styles.emptyText}>Курсов пока нет</Text>}
+          />
+        </View>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -589,10 +636,8 @@ function CardsScreen({ route, navigation }) {
     ], { useNativeDriver: false }),
     onPanResponderRelease: (_, gesture) => {
       if (gesture.dx < -80) {
-        // Не знаю (свайп влево)
         nextCard();
       } else if (gesture.dx > 80) {
-        // Знаю (свайп вправо)
         nextCard();
       } else {
         Animated.spring(swipeAnim, { toValue: 0, useNativeDriver: true }).start();
@@ -624,17 +669,18 @@ function CardsScreen({ route, navigation }) {
       <Animated.View
         {...panResponder.panHandlers}
         style={{
-          width: '85%',
-          height: 220,
-          borderRadius: 28,
+          width: '88%',
+          height: 340,
+          borderRadius: 32,
           alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 30,
-          overflow: 'hidden',
-          shadowColor: SECONDARY,
-          shadowOpacity: 0.18,
-          shadowRadius: 24,
-          elevation: 10,
+          justifyContent: 'flex-start',
+          marginBottom: 38,
+          overflow: 'visible',
+          shadowColor: '#2563EB',
+          shadowOpacity: 0.22,
+          shadowRadius: 32,
+          elevation: 18,
+          backgroundColor: 'transparent',
           transform: [
             { perspective: 1000 },
             { rotateY },
@@ -642,31 +688,40 @@ function CardsScreen({ route, navigation }) {
           ],
         }}
       >
-        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={{
-          ...StyleSheet.absoluteFillObject,
-          backgroundColor: 'rgba(255,255,255,0.18)',
-          borderRadius: 28,
-          borderWidth: 2,
-          borderColor: 'rgba(51,102,255,0.35)',
-          shadowColor: '#A3C8FF',
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.25,
-          shadowRadius: 32,
-        }} />
-        <TouchableOpacity style={{ flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.9} onPress={withHaptic(() => setFlipped(f => !f))}>
-          {card.image && (
-            <Image source={{ uri: card.image }} style={{ width: 120, height: 90, borderRadius: 12, marginBottom: 10 }} />
-          )}
-          {!flipped ? (
-            <Text style={[styles.title, { fontSize: 28 }]}>{card.term}</Text>
-          ) : (
-            <Text style={[styles.folderDesc, { fontSize: 22, color: TEXT_MAIN, textAlign: 'center', paddingHorizontal: 10, transform: [{ scaleX: -1 }] }]}>{card.definition}</Text>
-          )}
-        </TouchableOpacity>
+        <LinearGradient
+          colors={["#2563EB", "#5EA8FF"]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            flex: 1,
+            width: '100%',
+            borderRadius: 32,
+            padding: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
+            overflow: 'hidden',
+          }}
+        >
+          <TouchableOpacity style={{ flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.9} onPress={withHaptic(() => setFlipped(f => !f))}>
+            {/* Фото по центру, если есть */}
+            {card.image && (
+              <Image source={{ uri: card.image }} style={{ width: 140, height: 110, borderRadius: 18, marginBottom: 18, backgroundColor: '#fff' }} />
+            )}
+            {/* Термин или определение */}
+            {!flipped ? (
+              <Text style={{ color: '#fff', fontSize: 32, fontWeight: 'bold', marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 }}>{card.term}</Text>
+            ) : (
+              <Text style={{ color: '#fff', fontSize: 22, textAlign: 'center', paddingHorizontal: 18 }}>{card.definition}</Text>
+            )}
+          </TouchableOpacity>
+        </LinearGradient>
       </Animated.View>
-      <Text style={[styles.folderDesc, { color: TEXT_SECONDARY, marginBottom: 10 }]}>Карта {index + 1} из {terms.length}</Text>
-      <ModernButton onPress={withHaptic(() => navigation.goBack())}>Назад</ModernButton>
+      {/* Индикатор страницы */}
+      <View style={{ backgroundColor: '#181F2A', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 6, marginTop: 0, flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={{ color: '#2563EB', fontWeight: 'bold', fontSize: 17 }}>{index + 1}</Text>
+        <Text style={{ color: '#fff', fontSize: 17 }}>/ {terms.length}</Text>
+      </View>
+      <ModernButton onPress={withHaptic(() => navigation.goBack())} style={{ marginTop: 18 }}>Назад</ModernButton>
     </LinearGradient>
   );
 }
@@ -1052,8 +1107,13 @@ function SmallGrayModeButton({ children, onPress, icon }) {
 
 // Экран создания курса
 function CreateCourseScreen({ navigation, route }) {
+  const { addCourse } = route.params;
+  const [title, setTitle] = React.useState('');
+  const [description, setDescription] = React.useState('');
   const [video, setVideo] = React.useState(null);
   const [pdf, setPdf] = React.useState(null);
+  const [pdfName, setPdfName] = React.useState('');
+  const [loadingPdf, setLoadingPdf] = React.useState(false);
 
   const pickVideo = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -1067,11 +1127,156 @@ function CreateCourseScreen({ navigation, route }) {
   };
 
   const pickPdf = async () => {
+    setLoadingPdf(true);
     let result = await DocumentPicker.getDocumentAsync({
       type: 'application/pdf',
+      copyToCacheDirectory: true,
+      multiple: false,
     });
+    console.log('DocumentPicker result:', result);
     if (result.type === 'success') {
-      setPdf(result.uri);
+      if (result.assets && result.assets.length > 0) {
+        setPdf(result.assets[0].uri);
+        setPdfName(result.assets[0].name || 'PDF');
+        console.log('PDF set from assets:', result.assets[0].uri, result.assets[0].name);
+      } else if (result.uri) {
+        setPdf(result.uri);
+        setPdfName(result.name || 'PDF');
+        console.log('PDF set from uri:', result.uri, result.name);
+      } else {
+        setPdf(null);
+        setPdfName('');
+        console.log('PDF not set, no uri');
+      }
+    } else {
+      setPdf(null);
+      setPdfName('');
+      console.log('PDF not set, cancelled');
+    }
+    setLoadingPdf(false);
+  };
+
+  const handleCreate = () => {
+    if (!title.trim() || !description.trim() || !video) return;
+    // Для отладки
+    console.log('Создаём курс:', { title, description, video, pdf, pdfName });
+    addCourse({
+      id: Date.now().toString(),
+      title,
+      description,
+      video,
+      pdf,
+      pdfName,
+    });
+    navigation.goBack();
+  };
+
+  return (
+    <LinearGradient colors={BG_GRADIENT} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <GridBackground />
+        <View style={{ margin: 24, flex: 1 }}>
+          <Text style={[styles.title, { fontSize: 22, marginBottom: 12 }]}>Создать курс</Text>
+          {/* Временный вывод состояния для отладки */}
+          <Text style={{ color: '#FFD60A', fontSize: 13, marginBottom: 4 }}>pdf: {pdf ? pdf : 'null'}</Text>
+          <Text style={{ color: '#FFD60A', fontSize: 13, marginBottom: 8 }}>pdfName: {pdfName ? pdfName : 'null'}</Text>
+          <TextInput
+            style={[styles.input, { marginBottom: 10 }]}
+            placeholder="Название курса"
+            placeholderTextColor={TEXT_SECONDARY}
+            value={title}
+            onChangeText={setTitle}
+          />
+          <TextInput
+            style={[styles.input, styles.textArea, { minHeight: 80, marginBottom: 18 }]}
+            placeholder="Описание курса"
+            placeholderTextColor={TEXT_SECONDARY}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+          />
+          {/* Серый блок для видео */}
+          <TouchableOpacity onPress={pickVideo} activeOpacity={0.85} style={{
+            backgroundColor: '#23262F',
+            borderRadius: 16,
+            height: 120,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 18,
+            borderWidth: 1.5,
+            borderColor: '#23262F',
+            position: 'relative',
+          }}>
+            {video ? (
+              <Video
+                source={{ uri: video }}
+                style={{ width: '100%', height: '100%', borderRadius: 16 }}
+                resizeMode="cover"
+                usePoster
+                posterStyle={{ borderRadius: 16 }}
+                isMuted
+              />
+            ) : (
+              <>
+                <Feather name="paperclip" size={32} color={TEXT_SECONDARY} style={{ marginBottom: 8 }} />
+                <Text style={{ color: TEXT_SECONDARY, fontSize: 16 }}>Загрузите видео</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          {/* Кнопка для PDF */}
+          <TouchableOpacity onPress={pickPdf} activeOpacity={0.85} style={{
+            backgroundColor: '#23262F',
+            borderRadius: 100,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical: 14,
+            marginBottom: 10,
+          }}>
+            <Feather name="paperclip" size={20} color={TEXT_SECONDARY} style={{ marginRight: 8 }} />
+            <Text style={{ color: TEXT_SECONDARY, fontWeight: 'bold', fontSize: 16 }}>Прикрепить PDF</Text>
+          </TouchableOpacity>
+          {/* PDF bar */}
+          {loadingPdf && (
+            <View style={{ backgroundColor: '#23262F', borderRadius: 8, padding: 10, marginBottom: 10 }}>
+              <Text style={{ color: TEXT_SECONDARY }}>Загрузка PDF...</Text>
+            </View>
+          )}
+          {pdf && !loadingPdf && (
+            <View style={{ backgroundColor: '#23262F', borderRadius: 8, padding: 12, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Feather name="file" size={18} color={TEXT_SECONDARY} style={{ marginRight: 8 }} />
+                <Text style={{ color: TEXT_MAIN }}>{pdfName}</Text>
+              </View>
+              <Feather name="check" size={18} color="#2AF598" />
+            </View>
+          )}
+          <ModernButton onPress={handleCreate} iconRight={<Feather name="check" size={22} color="#2563EB" />}>Создать</ModernButton>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
+  );
+}
+
+// Экран просмотра курса
+function CourseDetailScreen({ route }) {
+  const { course } = route.params;
+
+  const handleViewPdf = () => {
+    if (course.pdf) {
+      Linking.openURL(course.pdf);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (course.pdf) {
+      try {
+        const fileUri = FileSystem.documentDirectory + (course.pdfName || 'file.pdf');
+        await FileSystem.downloadAsync(course.pdf, fileUri);
+        alert('PDF успешно сохранён в память устройства!');
+      } catch (e) {
+        alert('Ошибка при скачивании PDF');
+      }
     }
   };
 
@@ -1079,13 +1284,34 @@ function CreateCourseScreen({ navigation, route }) {
     <LinearGradient colors={BG_GRADIENT} style={{ flex: 1 }}>
       <SafeAreaView style={{ flex: 1 }}>
         <GridBackground />
-        <View style={{ alignItems: 'center', marginTop: 40 }}>
-          <Text style={[styles.title, { fontSize: 26, marginBottom: 18 }]}>Создать курс</Text>
-          <ModernButton onPress={pickVideo} iconRight={<Feather name="video" size={22} color="#2563EB" />}>Загрузить видео</ModernButton>
-          {video && <Text style={{ color: '#fff', marginTop: 8, marginBottom: 8 }}>Видео выбрано</Text>}
-          <ModernButton onPress={pickPdf} iconRight={<Feather name="file" size={22} color="#2563EB" />}>Прикрепить PDF</ModernButton>
-          {pdf && <Text style={{ color: '#fff', marginTop: 8, marginBottom: 8 }}>PDF прикреплён</Text>}
-          <ModernButton onPress={() => navigation.goBack()} iconRight={<Feather name="check" size={22} color="#2563EB" />}>Создать</ModernButton>
+        <View style={{ margin: 24 }}>
+          <Text style={[styles.title, { fontSize: 22, marginBottom: 10 }]}>{course.title}</Text>
+          <Text style={[styles.folderDesc, { fontSize: 16, marginBottom: 18 }]}>{course.description}</Text>
+          {course.video && (
+            <Video
+              source={{ uri: course.video }}
+              style={{ width: '100%', height: 200, borderRadius: 16, marginBottom: 18 }}
+              useNativeControls
+              resizeMode="contain"
+            />
+          )}
+          {/* PDF блок сразу после видео */}
+          {course.pdf && (
+            <View style={{ backgroundColor: '#23262F', borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <Feather name="file" size={20} color={TEXT_SECONDARY} style={{ marginRight: 10 }} />
+                <Text style={{ color: TEXT_MAIN, fontSize: 16 }} numberOfLines={1}>{course.pdfName || 'PDF'}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={handleViewPdf} style={{ backgroundColor: '#2563EB', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 14, marginLeft: 8 }}>
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15 }}>Посмотреть</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleDownloadPdf} style={{ backgroundColor: '#23262F', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 14, borderWidth: 1, borderColor: '#2563EB', marginLeft: 8 }}>
+                  <Text style={{ color: '#2563EB', fontWeight: 'bold', fontSize: 15 }}>Скачать</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </SafeAreaView>
     </LinearGradient>
@@ -1104,6 +1330,7 @@ export default function App() {
         <Stack.Screen name="Quiz" component={QuizScreen} />
         <Stack.Screen name="QuizResults" component={QuizResultsScreen} />
         <Stack.Screen name="CreateCourse" component={CreateCourseScreen} />
+        <Stack.Screen name="CourseDetail" component={CourseDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
