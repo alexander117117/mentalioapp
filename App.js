@@ -1,15 +1,19 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, TextInput, Alert, Dimensions, SafeAreaView, Modal, Animated, PanResponder } from 'react-native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, TextInput, Alert, Dimensions, SafeAreaView, Modal, Animated, PanResponder, Image, Keyboard, TouchableWithoutFeedback, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Line } from 'react-native-svg';
 import { BlurView } from 'expo-blur';
 import MaskedView from '@react-native-masked-view/masked-view';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 const { width, height } = Dimensions.get('window');
 
 const BG_GRADIENT = ['#13151B', '#0A0A0D'];
@@ -63,7 +67,21 @@ function withHaptic(fn) {
   };
 }
 
-function HomeScreen({ navigation }) {
+// Экран Курсы (заглушка)
+function CoursesScreen({ navigation }) {
+  return (
+    <LinearGradient colors={BG_GRADIENT} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text style={[styles.title, { fontSize: 26 }]}>Курсы</Text>
+      <Text style={[styles.folderDesc, { fontSize: 16, marginTop: 10 }]}>Здесь скоро появятся курсы!</Text>
+      <View style={{ marginTop: 30 }}>
+        <ModernButton onPress={() => navigation.navigate('CreateCourse')} iconRight={<Feather name="plus" size={22} color="#2563EB" />}>Создать курс</ModernButton>
+      </View>
+    </LinearGradient>
+  );
+}
+
+// Главный экран теперь называется Заучивание
+function LearningScreen({ navigation }) {
   const [folders, setFolders] = React.useState([]);
   const [editModalVisible, setEditModalVisible] = React.useState(false);
   const [editFolder, setEditFolder] = React.useState(null);
@@ -130,7 +148,9 @@ function HomeScreen({ navigation }) {
           )}
           ListEmptyComponent={<Text style={styles.emptyText}>Папок пока нет</Text>}
         />
-        <ModernButton onPress={withHaptic(handleCreateFolder)} iconRight={<Feather name="arrow-right" size={22} color="#2563EB" />}>Создать папку</ModernButton>
+        <View style={{ marginBottom: 80 }}>
+          <ModernButton onPress={withHaptic(handleCreateFolder)} iconRight={<Feather name="arrow-right" size={22} color="#2563EB" />}>Создать папку</ModernButton>
+        </View>
         {/* Модальное окно редактирования папки */}
         <Modal
           visible={editModalVisible}
@@ -157,6 +177,126 @@ function HomeScreen({ navigation }) {
         </Modal>
       </SafeAreaView>
     </LinearGradient>
+  );
+}
+
+// Кастомный таббар
+function CustomTabBar({ state, descriptors, navigation }) {
+  return (
+    <View style={customTabBarStyles.container}>
+      <View style={customTabBarStyles.tabBarBox}>
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const label =
+            options.tabBarLabel !== undefined
+              ? options.tabBarLabel
+              : options.title !== undefined
+              ? options.title
+              : route.name;
+
+          const isFocused = state.index === index;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!isFocused && !event.defaultPrevented) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate(route.name);
+            }
+          };
+
+          // Иконки для вкладок
+          let iconName = 'circle';
+          if (route.name === 'Заучивание') iconName = 'book-open';
+          if (route.name === 'Курсы') iconName = 'book';
+
+          return (
+            <TouchableOpacity
+              key={route.key}
+              accessibilityRole="button"
+              accessibilityState={isFocused ? { selected: true } : {}}
+              accessibilityLabel={options.tabBarAccessibilityLabel}
+              testID={options.tabBarTestID}
+              onPress={onPress}
+              style={customTabBarStyles.tabBtn}
+              activeOpacity={0.85}
+            >
+              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <Feather
+                  name={iconName}
+                  size={28}
+                  color={isFocused ? '#2563EB' : '#6C6C6C'}
+                  style={isFocused ? customTabBarStyles.activeIcon : {}}
+                />
+                <Text style={[customTabBarStyles.label, isFocused && customTabBarStyles.activeLabel]}>{label}</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const customTabBarStyles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: Platform.OS === 'ios' ? 36 : 24,
+    zIndex: 100,
+  },
+  tabBarBox: {
+    flexDirection: 'row',
+    backgroundColor: '#181F2A',
+    borderRadius: 32,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 16,
+  },
+  tabBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  label: {
+    fontSize: 12,
+    color: '#6C6C6C',
+    marginTop: 2,
+    fontWeight: 'bold',
+  },
+  activeLabel: {
+    color: '#2563EB',
+  },
+  activeIcon: {
+    textShadowColor: 'rgba(37,99,235,0.45)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+  },
+});
+
+// Tab Navigator
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      tabBar={props => <CustomTabBar {...props} />}
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Tab.Screen name="Заучивание" component={LearningScreen} />
+      <Tab.Screen name="Курсы" component={CoursesScreen} />
+    </Tab.Navigator>
   );
 }
 
@@ -320,14 +460,28 @@ function TopicScreen({ route, navigation }) {
   const [terms, setTerms] = React.useState(topic.terms || []);
   const [term, setTerm] = React.useState('');
   const [definition, setDefinition] = React.useState('');
+  const [image, setImage] = React.useState(null);
 
   const handleAddTerm = () => {
     if (!term.trim() || !definition.trim()) return;
-    const newTerms = [...terms, { id: Date.now().toString(), term, definition }];
+    const newTerms = [...terms, { id: Date.now().toString(), term, definition, image }];
     setTerms(newTerms);
     updateTopic({ ...topic, terms: newTerms });
     setTerm('');
     setDefinition('');
+    setImage(null);
+  };
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setImage(result.assets[0].uri);
+    }
   };
 
   const handleOpenCards = () => {
@@ -339,55 +493,70 @@ function TopicScreen({ route, navigation }) {
   };
 
   return (
-    <LinearGradient colors={BG_GRADIENT} style={{ flex: 1 }}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <GridBackground />
-        <View style={styles.headerBox}>
-          <Feather name="file-text" size={44} color={SECONDARY} style={{ marginBottom: 10 }} />
-          <Text style={styles.title}>{topic.name}</Text>
-        </View>
-        <View style={styles.formBox}>
-          <TextInput
-            style={styles.input}
-            value={term}
-            onChangeText={setTerm}
-            placeholder="Термин"
-            placeholderTextColor={TEXT_SECONDARY}
-          />
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={definition}
-            onChangeText={setDefinition}
-            placeholder="Описание / перевод"
-            placeholderTextColor={TEXT_SECONDARY}
-            multiline
-            numberOfLines={2}
-          />
-          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 10 }}>
-            <SmallGrayModeButton onPress={withHaptic(handleOpenCards)} icon={<Feather name="arrow-right" size={18} color="#fff" />}>Карточки</SmallGrayModeButton>
-            <SmallGrayModeButton onPress={withHaptic(handleOpenQuiz)} icon={<Feather name="arrow-right" size={18} color="#fff" />}>Заучивание</SmallGrayModeButton>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <LinearGradient colors={BG_GRADIENT} style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1 }}>
+          <GridBackground />
+          <View style={styles.headerBox}>
+            <Feather name="file-text" size={44} color={SECONDARY} style={{ marginBottom: 10 }} />
+            <Text style={styles.title}>{topic.name}</Text>
           </View>
-          <ModernButton onPress={withHaptic(handleAddTerm)} iconRight={<Feather name="arrow-right" size={22} color="#2563EB" />}>Добавить</ModernButton>
-        </View>
-        <FlatList
-          data={terms}
-          keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingBottom: 30 }}
-          renderItem={({ item }) => (
-            <View style={styles.folderCardShadow}>
-              <LinearGradient colors={CARD_GRADIENT} style={styles.folderCard} start={{x:0, y:0}} end={{x:1, y:1}}>
-                <Feather name="book-open" size={24} color={SECONDARY} style={{ marginRight: 18 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.folderTitle}>{item.term}</Text>
-                  <Text style={styles.folderDesc}>{item.definition}</Text>
-                </View>
-              </LinearGradient>
+          <View style={styles.formBox}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+              <TextInput
+                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                value={term}
+                onChangeText={setTerm}
+                placeholder="Термин"
+                placeholderTextColor={TEXT_SECONDARY}
+              />
+              <TouchableOpacity onPress={withHaptic(pickImage)} style={{ marginLeft: 8, padding: 6 }}>
+                <Feather name="paperclip" size={22} color={image ? SECONDARY : TEXT_SECONDARY} />
+              </TouchableOpacity>
             </View>
-          )}
-          ListEmptyComponent={<Text style={styles.emptyText}>Терминов пока нет</Text>}
-        />
-      </SafeAreaView>
-    </LinearGradient>
+            {image && (
+              <View style={{ alignItems: 'flex-start', marginBottom: 8 }}>
+                <Image source={{ uri: image }} style={{ width: 80, height: 60, borderRadius: 8, marginLeft: 2 }} />
+              </View>
+            )}
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={definition}
+              onChangeText={setDefinition}
+              placeholder="Описание / перевод"
+              placeholderTextColor={TEXT_SECONDARY}
+              multiline
+              numberOfLines={2}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 10 }}>
+              <SmallGrayModeButton onPress={withHaptic(handleOpenCards)} icon={<Feather name="arrow-right" size={18} color="#fff" />}>Карточки</SmallGrayModeButton>
+              <SmallGrayModeButton onPress={withHaptic(handleOpenQuiz)} icon={<Feather name="arrow-right" size={18} color="#fff" />}>Заучивание</SmallGrayModeButton>
+            </View>
+            <ModernButton onPress={withHaptic(handleAddTerm)} iconRight={<Feather name="arrow-right" size={22} color="#2563EB" />}>Добавить</ModernButton>
+          </View>
+          <FlatList
+            data={terms}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ paddingBottom: 30 }}
+            renderItem={({ item }) => (
+              <View style={styles.folderCardShadow}>
+                <LinearGradient colors={CARD_GRADIENT} style={styles.folderCard} start={{x:0, y:0}} end={{x:1, y:1}}>
+                  <Feather name="book-open" size={24} color={SECONDARY} style={{ marginRight: 18 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.folderTitle}>{item.term}</Text>
+                    <Text style={styles.folderDesc}>{item.definition}</Text>
+                    {item.image && (
+                      <Image source={{ uri: item.image }} style={{ width: 60, height: 40, borderRadius: 6, marginTop: 4 }} />
+                    )}
+                  </View>
+                </LinearGradient>
+              </View>
+            )}
+            ListEmptyComponent={<Text style={styles.emptyText}>Терминов пока нет</Text>}
+          />
+        </SafeAreaView>
+      </LinearGradient>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -486,6 +655,9 @@ function CardsScreen({ route, navigation }) {
           shadowRadius: 32,
         }} />
         <TouchableOpacity style={{ flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.9} onPress={withHaptic(() => setFlipped(f => !f))}>
+          {card.image && (
+            <Image source={{ uri: card.image }} style={{ width: 120, height: 90, borderRadius: 12, marginBottom: 10 }} />
+          )}
           {!flipped ? (
             <Text style={[styles.title, { fontSize: 28 }]}>{card.term}</Text>
           ) : (
@@ -495,6 +667,80 @@ function CardsScreen({ route, navigation }) {
       </Animated.View>
       <Text style={[styles.folderDesc, { color: TEXT_SECONDARY, marginBottom: 10 }]}>Карта {index + 1} из {terms.length}</Text>
       <ModernButton onPress={withHaptic(() => navigation.goBack())}>Назад</ModernButton>
+    </LinearGradient>
+  );
+}
+
+// Экран результатов теста
+function QuizResultsScreen({ route, navigation }) {
+  const { score, total, onRestart } = route.params;
+  const percentage = Math.round((score / total) * 100);
+  const [progressAnim] = React.useState(new Animated.Value(0));
+
+  React.useEffect(() => {
+    Animated.spring(progressAnim, {
+      toValue: score / total,
+      useNativeDriver: false,
+      friction: 8,
+    }).start();
+  }, []);
+
+  return (
+    <LinearGradient colors={BG_GRADIENT} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <GridBackground />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ alignItems: 'center', marginBottom: 40 }}>
+            <Text style={[styles.title, { fontSize: 32, marginBottom: 16 }]}>Тест завершён!</Text>
+            <Text style={[styles.folderDesc, { fontSize: 24, color: TEXT_SECONDARY }]}>
+              {score} из {total}
+            </Text>
+          </View>
+
+          {/* Прогресс-бар */}
+          <View style={{ width: '100%', marginBottom: 40 }}>
+            <View style={{ 
+              height: 12, 
+              backgroundColor: 'rgba(255,255,255,0.1)', 
+              borderRadius: 6,
+              overflow: 'hidden',
+              marginBottom: 8
+            }}>
+              <Animated.View style={{
+                height: '100%',
+                width: progressAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0%', '100%']
+                }),
+                backgroundColor: percentage >= 70 ? '#2AF598' : percentage >= 40 ? '#FFD60A' : '#FF3B30',
+                borderRadius: 6,
+              }} />
+            </View>
+            <Text style={[styles.folderDesc, { 
+              fontSize: 18, 
+              color: percentage >= 70 ? '#2AF598' : percentage >= 40 ? '#FFD60A' : '#FF3B30',
+              textAlign: 'center'
+            }]}>
+              {percentage}% правильных ответов
+            </Text>
+          </View>
+
+          <View style={{ width: '100%', gap: 16 }}>
+            <ModernButton 
+              onPress={withHaptic(onRestart)} 
+              iconRight={<Feather name="refresh-cw" size={22} color="#2563EB" />}
+            >
+              Пройти ещё раз
+            </ModernButton>
+            <ModernButton 
+              onPress={withHaptic(() => navigation.goBack())}
+              iconRight={<Feather name="arrow-left" size={22} color="#2563EB" />}
+            >
+              Вернуться
+            </ModernButton>
+          </View>
+        </View>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -517,8 +763,11 @@ function QuizScreen({ route, navigation }) {
     );
   }
 
-  const q = quiz[step];
-  const isCorrect = selected === q.correct;
+  const finished = step >= quiz.length;
+
+  // Вычислять q и isCorrect только если тест не завершён
+  const q = !finished ? quiz[step] : null;
+  const isCorrect = !finished && q ? selected === q.correct : false;
 
   const handleSelect = (option) => {
     if (showAnswer) return;
@@ -533,18 +782,25 @@ function QuizScreen({ route, navigation }) {
     setStep(s => s + 1);
   };
 
-  const finished = step >= quiz.length;
+  const handleRestart = () => {
+    setStep(0);
+    setScore(0);
+    setSelected(null);
+    setShowAnswer(false);
+  };
 
   if (finished) {
     return (
-      <LinearGradient colors={BG_GRADIENT} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={[styles.title, { marginBottom: 16 }]}>Тест завершён!</Text>
-        <Text style={[styles.folderDesc, { fontSize: 20, marginBottom: 24 }]}>Ваш результат: {score} из {quiz.length}</Text>
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16 }}>
-          <ModernButton onPress={withHaptic(() => { setStep(0); setScore(0); setSelected(null); setShowAnswer(false); })} iconRight={<Feather name="arrow-right" size={22} color="#2563EB" />}>Пройти ещё раз</ModernButton>
-          <ModernButton onPress={withHaptic(() => navigation.goBack())}>Вернуться</ModernButton>
-        </View>
-      </LinearGradient>
+      <QuizResultsScreen 
+        route={{ 
+          params: { 
+            score, 
+            total: quiz.length,
+            onRestart: handleRestart
+          } 
+        }} 
+        navigation={navigation} 
+      />
     );
   }
 
@@ -554,7 +810,10 @@ function QuizScreen({ route, navigation }) {
         <GridBackground />
         <View style={{ alignItems: 'center', marginTop: 60, marginBottom: 30 }}>
           <Text style={[styles.folderDesc, { color: TEXT_SECONDARY, fontSize: 16, marginBottom: 10 }]}>Вопрос {step + 1} из {quiz.length}</Text>
-          <View style={{ width: '90%', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 18, padding: 18, marginBottom: 24 }}>
+          <View style={{ width: '90%', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 18, padding: 18, marginBottom: 24, alignItems: 'center' }}>
+            {q && q.image && (
+              <Image source={{ uri: q.image }} style={{ width: 100, height: 75, borderRadius: 10, marginBottom: 10 }} />
+            )}
             <Text style={[styles.title, { fontSize: 20, textAlign: 'center' }]}>{q.definition}</Text>
           </View>
         </View>
@@ -791,16 +1050,60 @@ function SmallGrayModeButton({ children, onPress, icon }) {
   );
 }
 
+// Экран создания курса
+function CreateCourseScreen({ navigation, route }) {
+  const [video, setVideo] = React.useState(null);
+  const [pdf, setPdf] = React.useState(null);
+
+  const pickVideo = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setVideo(result.assets[0].uri);
+    }
+  };
+
+  const pickPdf = async () => {
+    let result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf',
+    });
+    if (result.type === 'success') {
+      setPdf(result.uri);
+    }
+  };
+
+  return (
+    <LinearGradient colors={BG_GRADIENT} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <GridBackground />
+        <View style={{ alignItems: 'center', marginTop: 40 }}>
+          <Text style={[styles.title, { fontSize: 26, marginBottom: 18 }]}>Создать курс</Text>
+          <ModernButton onPress={pickVideo} iconRight={<Feather name="video" size={22} color="#2563EB" />}>Загрузить видео</ModernButton>
+          {video && <Text style={{ color: '#fff', marginTop: 8, marginBottom: 8 }}>Видео выбрано</Text>}
+          <ModernButton onPress={pickPdf} iconRight={<Feather name="file" size={22} color="#2563EB" />}>Прикрепить PDF</ModernButton>
+          {pdf && <Text style={{ color: '#fff', marginTop: 8, marginBottom: 8 }}>PDF прикреплён</Text>}
+          <ModernButton onPress={() => navigation.goBack()} iconRight={<Feather name="check" size={22} color="#2563EB" />}>Создать</ModernButton>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
+  );
+}
+
 export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="CreateFolder" component={CreateFolderScreen} />
         <Stack.Screen name="Folder" component={FolderScreen} />
         <Stack.Screen name="Topic" component={TopicScreen} />
         <Stack.Screen name="Cards" component={CardsScreen} />
         <Stack.Screen name="Quiz" component={QuizScreen} />
+        <Stack.Screen name="QuizResults" component={QuizResultsScreen} />
+        <Stack.Screen name="CreateCourse" component={CreateCourseScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
